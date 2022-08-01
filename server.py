@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import flask                                                                                        
+import subprocess
 import json
 import argparse
 import os
@@ -38,10 +39,29 @@ def source():
     return flask.Response(json.dumps(jsonDict), 200, mimetype='application/json')
 
 @app.route('/static/<path:path>')
-def send_js(path):
+def static(path):
     response = flask.send_from_directory('static', path)
     #response.headers['Cache-Control'] = "max-age=2592000"
     return response
+
+@app.route('/tmp/<path:path>')
+def small(path):
+
+    # verify valid path #
+    dbpath = "./" + path.replace("static/","")
+    result = db.session.query(File.path).filter(File.path == dbpath).first()
+    if result:
+
+        tmpfile = path.replace("/", "--") + ".mp3"
+        tmpfileFP = "tmp/" + tmpfile
+
+        if not os.path.isfile(tmpfileFP):
+            subprocess.run(["./small.sh", path, tmpfileFP])
+
+        response = flask.send_from_directory('tmp', tmpfile)
+        return response
+    else:
+        return ("BAD PATH", 505)
 
 @app.before_first_request
 def init():
@@ -86,7 +106,6 @@ class DataTable():
         
         count = 0
         resultDicts = [ r.toDict() for r in results ]
-        print(results)
 
         # data list must have the correct order (same as table scheme) #
         rows = []
@@ -99,7 +118,6 @@ class DataTable():
             singleRow.append(path)
             rows.append(singleRow)
 
-        print(rows)
 
         d = dict()
         d.update({ "draw" : self.draw })
@@ -137,7 +155,6 @@ class DataTable():
             total    = query.count()
             filtered = total
 
-        print(results)
         return self.__build(results, total, filtered)
 
 if __name__ == "__main__":
