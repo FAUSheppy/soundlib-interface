@@ -24,7 +24,7 @@ db = SQLAlchemy(app)
 
 @app.route("/") 
 def root():
-    header = ["File", "Tags"]#,"Play", "Download"]
+    header = ["File", "Play", "Download"]
     render = flask.render_template("index.html", headerCol=header)
     response = flask.Response(render, 200)
     response.headers.add('Access-Control-Allow-Headers', '*')
@@ -86,15 +86,20 @@ class DataTable():
         
         count = 0
         resultDicts = [ r.toDict() for r in results ]
+        print(results)
 
         # data list must have the correct order (same as table scheme) #
         rows = []
         for r in resultDicts:
-            print(r)
             singleRow = []
-            for key in self.cols:
-                singleRow.append(r[key])
+            path = r["path"]
+            tags = r["tags"]
+            singleRow.append(os.path.basename(path))
+            singleRow.append(flask.Markup(path))
+            singleRow.append(path)
             rows.append(singleRow)
+
+        print(rows)
 
         d = dict()
         d.update({ "draw" : self.draw })
