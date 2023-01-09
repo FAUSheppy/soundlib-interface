@@ -66,7 +66,7 @@ def small(path):
 @app.before_first_request
 def init():
     app.config["DB"] = db
-    db.create_all()
+    #db.create_all() <- dont do this database must be created by loader
 
 class File(db.Model):
     __tablename__ = "files"
