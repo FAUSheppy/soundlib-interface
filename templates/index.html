@@ -38,7 +38,7 @@
             		"targets": 1,
             		"render": function ( datapath, type, full, meta ) {
 			     console.log(datapath)
-			     return '<audio controls><source src="/static/'+datapath+'" type="audio/wav"></audio>';
+			     return '<audio controls preload="none"><source src="/tmp/static/'+datapath+'" type="audio/wav"></audio>';
                     	}
          	    }
 		]
