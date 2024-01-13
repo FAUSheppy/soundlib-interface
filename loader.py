@@ -26,7 +26,22 @@ class File(base):
 def fileToFileobject(path, source=""):
 
     basename = os.path.basename(path)
-    return File(path=path, tags=basename, source)
+    return File(path=path, tags=basename, source=source)
+
+def list_objects(client, bucket_name, prefix=''):
+
+    paginator = client.get_paginator('list_objects_v2')
+    response_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+
+    for response in response_iterator:
+        for content in response.get('Contents', []):
+            yield content['Key']
+
+def list_all_files_s3(bucket_name):
+
+    s3_client = boto3.client('s3', endpoint_url=os.environ["S3_ENDPOINT"])
+    for file_key in list_objects(s3_client, bucket_name):
+        yield file_key
 
 if __name__ == "__main__":
 
@@ -44,7 +59,7 @@ if __name__ == "__main__":
 
     # load filename list from backend #
     if args.path:
-        filenames = glob.iglob(args.path + '**/**', recursive=True):
+        filenames = glob.iglob(args.path + '**/**', recursive=True)
         source = "file://{}".format(args.path)
     elif args.s3_bucket:
         filenames = list_all_files_s3(args.s3_bucket)
@@ -54,7 +69,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # iterate filenames #
-    for filename in glob.iglob(args.path + '**/**', recursive=True):
+    for filename in filenames:
 
         if not filename.endswith(".wav"):
             continue
@@ -63,18 +78,3 @@ if __name__ == "__main__":
         session.merge(f)
     
     session.commit()
-
-def list_objects(client, bucket_name, prefix=''):
-
-    paginator = client.get_paginator('list_objects_v2')
-    response_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
-
-    for response in response_iterator:
-        for content in response.get('Contents', []):
-            yield content['Key']
-
-def list_all_files_s3(bucket_name):
-
-    s3_client = boto3.client('s3', endpoint_url=os.environ.get["S3_ENDPOINT"])
-    for file_key in list_objects(s3_client, bucket_name):
-        print(file_key)

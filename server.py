@@ -18,6 +18,8 @@ from sqlalchemy.sql import func, text
 import sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
 
+import boto3
+
 app = flask.Flask("Soundlib Interface", static_folder=None)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.sqlite'
 #app.config['SECRET_KEY'] = "secret"
@@ -40,27 +42,48 @@ def source():
 
 @app.route('/static/<path:path>')
 def static(path):
-    response = flask.send_from_directory('static', path)
-    #response.headers['Cache-Control'] = "max-age=2592000"
-    return response
+    '''Return an unmodified file from S3 or FS'''
+
+    source = flask.request.get("source")
+    if source.startswith("s3://"):
+        # TODO boto3 download file to bytestream
+        filebuffer = BytesIO()
+        filebuffer.seek(0)
+        return flask.send_file(filebuffer, as_attachment=True,
+                    attachment_filename=os.path.basename(path), mimetype="")
+    else:
+        response = flask.send_from_directory('static', path)
+        return response
 
 @app.route('/tmp/<path:path>')
 def small(path):
+    '''Return a small version of the file for a short listen'''
 
     # verify valid path #
     dbpath = "./" + path.replace("static/","")
     result = db.session.query(File.path).filter(File.path == dbpath).first()
+
     if result:
 
         tmpfile = path.replace("/", "--") + ".mp3"
         tmpfileFP = "tmp/" + tmpfile
 
         if not os.path.isfile(tmpfileFP):
+
+            # download file from s3 #
+            if result.source.startswith("s3://"):
+                # mkdir path TODO
+                # download file from boto3 to path TODO
+            
+            # minimize file #
             subprocess.run(["./small.sh", path, tmpfileFP])
+
 
         response = flask.send_from_directory('tmp', tmpfile)
         return response
+
     else:
+
         return ("BAD PATH", 505)
 
 @app.before_first_request
@@ -69,9 +92,12 @@ def init():
     #db.create_all() <- dont do this database must be created by loader
 
 class File(db.Model):
+
     __tablename__ = "files"
+
     path = Column(String, primary_key=True)
     tags = Column(String)
+    source = Column(String)
 
     def toDict(self):
         return { "path" : self.path, "tags" : self.tags }
