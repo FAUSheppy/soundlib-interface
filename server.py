@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import flask                                                                                        
+import io
 import subprocess
 import json
 import argparse
@@ -10,6 +11,7 @@ import os.path
 import werkzeug.utils
 import datetime
 import sys
+import secrets
 
 from sqlalchemy import Column, Integer, String, Boolean, or_, and_
 from sqlalchemy.orm import sessionmaker
@@ -17,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func, text
 import sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
+import markupsafe
 
 import boto3
 
@@ -35,7 +38,7 @@ def root():
     return response
 
 @app.route("/data-source", methods=["POST"])
-def source():
+def data_source():
     dt = DataTable(flask.request.form.to_dict(), ["path", "tags"])
     jsonDict = dt.get()
     return flask.Response(json.dumps(jsonDict), 200, mimetype='application/json')
@@ -44,15 +47,28 @@ def source():
 def static(path):
     '''Return an unmodified file from S3 or FS'''
 
-    source = flask.request.get("source")
-    if source.startswith("s3://"):
-        # TODO boto3 download file to bytestream
-        filebuffer = BytesIO()
+    dbpath = "./" + path.replace("static/","")
+
+    # try it without ./ #
+    result = db.session.query(File).filter(File.path==dbpath).first()
+
+    # try witout #
+    if not result:
+        result = db.session.query(File).filter(File.path==dbpath[2:]).first()
+
+    if not result:
+        return ("NOT FOUND", 404)
+
+    if result.source and result.source.startswith("s3://"):
+        filebuffer = io.BytesIO()
+        bucket_name = result.source.replace("s3://", "", 1)
+        s3_client = boto3.client('s3', endpoint_url=os.environ["S3_ENDPOINT"])
+        s3_client.download_fileobj(bucket_name, result.path, filebuffer)
         filebuffer.seek(0)
         return flask.send_file(filebuffer, as_attachment=True,
-                    attachment_filename=os.path.basename(path), mimetype="")
+                    download_name=os.path.basename(result.path), mimetype="audio/wav")
     else:
-        response = flask.send_from_directory('static', path)
+        response = flask.send_from_directory('static', result.path)
         return response
 
 @app.route('/tmp/<path:path>')
@@ -61,7 +77,14 @@ def small(path):
 
     # verify valid path #
     dbpath = "./" + path.replace("static/","")
-    result = db.session.query(File.path).filter(File.path == dbpath).first()
+
+    # try it without ./ #
+    result = db.session.query(File).filter(File.path==dbpath).first()
+
+    # try witout #
+    if not result:
+        result = db.session.query(File).filter(File.path==dbpath[2:]).first()
+
 
     if result:
 
@@ -71,23 +94,40 @@ def small(path):
         if not os.path.isfile(tmpfileFP):
 
             # download file from s3 #
+            target_path_s3 = None
             if result.source.startswith("s3://"):
-                # mkdir path TODO
-                # download file from boto3 to path TODO
-            
+
+                bucket_name = result.source.replace("s3://", "", 1)
+
+                # download path & name #
+                if not os.path.isdir("./downloads/"):
+                    os.mkdir("./downloads/")
+
+                basename = os.path.basename(path)
+                target_path_s3 = os.path.join("./downloads/", "{}--{}".format(
+                                    secrets.token_urlsafe(20), basename))
+
+                # download file #
+                s3_client = boto3.client('s3', endpoint_url=os.environ["S3_ENDPOINT"])
+                s3_client.download_file(bucket_name, result.path, target_path_s3)
+                path = target_path_s3
+           
+            else:
+                pass # fs nothing to do here
+
             # minimize file #
             subprocess.run(["./small.sh", path, tmpfileFP])
 
+            # remove tmp file #
+            if target_path_s3:
+                os.remove(target_path_s3)
 
         response = flask.send_from_directory('tmp', tmpfile)
         return response
-
     else:
+        return ("BAD PATH", 404)
 
-        return ("BAD PATH", 505)
-
-@app.before_first_request
-def init():
+def create_app():
     app.config["DB"] = db
     #db.create_all() <- dont do this database must be created by loader
 
@@ -140,7 +180,7 @@ class DataTable():
             path = r["path"]
             tags = r["tags"]
             singleRow.append(os.path.basename(path))
-            singleRow.append(flask.Markup(path))
+            singleRow.append(markupsafe.Markup(path))
             singleRow.append(path)
             rows.append(singleRow)
 
@@ -189,4 +229,8 @@ if __name__ == "__main__":
     parser.add_argument('--interface', default="localhost", help='Interface to run on')
     parser.add_argument('--port', default="5000", help='Port to run on')
     args = parser.parse_args()
-    app.run(host=args.interface, port=args.port)
+
+    with app.app_context():
+        create_app()
+
+    app.run(host=args.interface, port=args.port, debug=True)

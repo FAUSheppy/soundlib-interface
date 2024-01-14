@@ -7,7 +7,7 @@ import datetime
 import boto3
 
 from sqlalchemy import Column, Integer, String, Boolean, or_, and_, Table, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func
