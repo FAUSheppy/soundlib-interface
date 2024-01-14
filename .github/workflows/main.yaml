@@ -23,7 +23,7 @@ jobs:
           username: ${{ secrets.REGISTRY_USER }}
           password: ${{ secrets.REGISTRY_PASS }}
       -
-        name: atlantis-verify
+        name: atlantis-soundlib
         uses: docker/build-push-action@v3
         with:
           context: .
