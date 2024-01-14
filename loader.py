@@ -4,9 +4,10 @@ import argparse
 import os
 import sys
 import datetime
+import boto3
 
 from sqlalchemy import Column, Integer, String, Boolean, or_, and_, Table, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func
@@ -20,29 +21,66 @@ class File(base):
     
     path = Column(String, primary_key=True)
     tags = Column(String)
+    source = Column(String)
 
-def fileToFileobject(path):
+def fileToFileobject(path, source=""):
 
     basename = os.path.basename(path)
-    return File(path=path, tags=basename)
+    return File(path=path, tags=basename, source=source)
+
+def list_objects(client, bucket_name, prefix=''):
+
+    paginator = client.get_paginator('list_objects_v2')
+    response_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+
+    for response in response_iterator:
+        for content in response.get('Contents', []):
+            yield content['Key']
+
+def list_all_files_s3(bucket_name):
+
+    s3_client = boto3.client('s3', endpoint_url=os.environ["S3_ENDPOINT"])
+    for file_key in list_objects(s3_client, bucket_name):
+        yield file_key
+
+def init(dbpath, s3_bucket, fs_path):
+
+    print("Running loader with", dbpath, s3_bucket, fs_path, file=sys.stderr)
+
+    # database #
+    engine = sqlalchemy.create_engine(dbpath)
+    base.metadata.create_all(engine)
+    session = Session(engine)
+
+    # load filename list from backend #
+    if fs_path:
+        filenames = glob.iglob(dbpath + '**/**', recursive=True)
+        source = "file://{}".format(dbpath)
+    elif s3_bucket:
+        filenames = list_all_files_s3(s3_bucket)
+        source = "s3://{}".format(s3_bucket)
+    else:
+        print("Either s3-bucket must be enabled or path must be set", file=sys.stderr)
+        sys.exit(1)
+
+    # iterate filenames #
+    for filename in filenames:
+
+        if not filename.endswith(".wav"):
+            continue
+
+        f = fileToFileobject(filename, source)
+        session.merge(f)
+    
+    session.commit()
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description='Create soundlib db')
     parser.add_argument('--db', default="sqlite:///database.sqlite",
                                     help='DB String to feed to sqlalchemy create engine')
-    parser.add_argument('--path', required=True, help='Path to read recursively')
+    parser.add_argument('--path', help='Path to read recursively')
+    parser.add_argument('--s3-bucket', help='Use S3 backend with params from env')
     args = parser.parse_args()
 
-    engine = sqlalchemy.create_engine(args.db)
-    base.metadata.create_all(engine)
-
-    
-    session = Session(engine)
-    for filename in glob.iglob(args.path + '**/**', recursive=True):
-        if not filename.endswith(".wav"):
-            continue
-        f = fileToFileobject(filename)
-        session.merge(f)
-        print(filename)
-    
-    session.commit()
+    init(dbpath=args.db, s3_bucket=args.s3_bucket, fs_path=args.path)
