@@ -20,8 +20,10 @@ from sqlalchemy.sql import func, text
 import sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
 import markupsafe
+import pathlib
 
 import boto3
+import humanize
 
 app = flask.Flask("Soundlib Interface", static_folder=None)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.sqlite'
@@ -30,11 +32,17 @@ db = SQLAlchemy(app)
 
 @app.route("/") 
 def root():
+    '''Display Index site'''
+
+    cache_size = sum(p.stat().st_size for p in pathlib.Path("tmp").rglob('*'))
+    cache_size_str = humanize.naturalsize(cache_size)
+
     header = ["File", "Play", "Download"]
-    render = flask.render_template("index.html", headerCol=header)
+    render = flask.render_template("index.html", header_col=header, cache_size_str=cache_size_str)
     response = flask.Response(render, 200)
     response.headers.add('Access-Control-Allow-Headers', '*')
     response.headers.add('Access-Control-Allow-Origin', '*')
+
     return response
 
 @app.route("/data-source", methods=["POST"])
