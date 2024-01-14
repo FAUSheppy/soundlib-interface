@@ -43,29 +43,24 @@ def list_all_files_s3(bucket_name):
     for file_key in list_objects(s3_client, bucket_name):
         yield file_key
 
-if __name__ == "__main__":
+def init(dbpath, s3_bucket, fs_path):
 
-    parser = argparse.ArgumentParser(description='Create soundlib db')
-    parser.add_argument('--db', default="sqlite:///database.sqlite",
-                                    help='DB String to feed to sqlalchemy create engine')
-    parser.add_argument('--path', help='Path to read recursively')
-    parser.add_argument('--s3-bucket', help='Use S3 backend with params from env')
-    args = parser.parse_args()
+    print("Running loader with", dbpath, s3_bucket, fs_path, file=sys.stderr)
 
     # database #
-    engine = sqlalchemy.create_engine(args.db)
+    engine = sqlalchemy.create_engine(dbpath)
     base.metadata.create_all(engine)
     session = Session(engine)
 
     # load filename list from backend #
-    if args.path:
-        filenames = glob.iglob(args.path + '**/**', recursive=True)
-        source = "file://{}".format(args.path)
-    elif args.s3_bucket:
-        filenames = list_all_files_s3(args.s3_bucket)
-        source = "s3://{}".format(args.s3_bucket)
+    if fs_path:
+        filenames = glob.iglob(dbpath + '**/**', recursive=True)
+        source = "file://{}".format(dbpath)
+    elif s3_bucket:
+        filenames = list_all_files_s3(s3_bucket)
+        source = "s3://{}".format(s3_bucket)
     else:
-        print("Either --s3-bucket must be enabled or --path must be set", file=sys.stderr)
+        print("Either s3-bucket must be enabled or path must be set", file=sys.stderr)
         sys.exit(1)
 
     # iterate filenames #
@@ -78,3 +73,14 @@ if __name__ == "__main__":
         session.merge(f)
     
     session.commit()
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Create soundlib db')
+    parser.add_argument('--db', default="sqlite:///database.sqlite",
+                                    help='DB String to feed to sqlalchemy create engine')
+    parser.add_argument('--path', help='Path to read recursively')
+    parser.add_argument('--s3-bucket', help='Use S3 backend with params from env')
+    args = parser.parse_args()
+
+    init(dbpath=args.db, s3_bucket=args.s3_bucket, fs_path=args.path)

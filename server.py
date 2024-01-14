@@ -25,9 +25,10 @@ import pathlib
 import boto3
 import humanize
 
+import loader
+
 app = flask.Flask("Soundlib Interface", static_folder=None)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.sqlite'
-#app.config['SECRET_KEY'] = "secret"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
 db = SQLAlchemy(app)
 
 @app.route("/") 
@@ -136,8 +137,14 @@ def small(path):
         return ("BAD PATH", 404)
 
 def create_app():
-    app.config["DB"] = db
-    #db.create_all() <- dont do this database must be created by loader
+    '''init app and execute loader'''
+
+    dbpath = "sqlite:///instance/database.sqlite"
+    if os.path.isfile(dbpath.replace("sqlite:///", "./", 1)):
+        print("Loader not run - database already exists", file=sys.stderr)
+        return
+    else:
+        loader.init(dbpath=dbpath, s3_bucket=os.environ.get("S3_BUCKET"), fs_path=os.environ.get("FS_PATH"))
 
 class File(db.Model):
 
