@@ -28,7 +28,7 @@ import humanize
 import loader
 
 app = flask.Flask("Soundlib Interface", static_folder=None)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.sqlite"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DB_URL") or "sqlite:///database.sqlite"
 db = SQLAlchemy(app)
 
 @app.route("/") 
