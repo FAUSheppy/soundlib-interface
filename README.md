@@ -11,5 +11,6 @@
           AWS_ACCESS_KEY_ID: <key_id>
           AWS_SECRET_ACCESS_KEY: <secret_key>
           S3_ENDPOINT: <endpoint>
+          # OPTION: DB_URL: ...
         volumes:
           - /tmp/data:/app/instance/
