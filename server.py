@@ -136,15 +136,18 @@ def small(path):
     else:
         return ("BAD PATH", 404)
 
-def create_app():
-    '''init app and execute loader'''
+@app.route('/reload-after-restart')
+def reload_after_restart():
 
-    dbpath = "sqlite:///instance/database.sqlite"
-    if os.path.isfile(dbpath.replace("sqlite:///", "./", 1)):
-        print("Loader not run - database already exists", file=sys.stderr)
-        return
+    if app.config.get("RELOADED"):
+        return ("Can only reload once after start", 200)
     else:
-        loader.init(dbpath=dbpath, s3_bucket=os.environ.get("S3_BUCKET"), fs_path=os.environ.get("FS_PATH"))
+        app.config["RELOADED"] = True
+        loader.init(dbpath=app.config["SQLALCHEMY_DATABASE_URI"],
+                s3_bucket=os.environ.get("S3_BUCKET"), fs_path=os.environ.get("FS_PATH"))
+
+def create_app():
+    pass
 
 class File(db.Model):
 
