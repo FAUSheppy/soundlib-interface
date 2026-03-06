@@ -77,10 +77,22 @@ def init(dbpath, s3_bucket, fs_path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Create soundlib db')
-    parser.add_argument('--db', default="sqlite:///database.sqlite",
-                                    help='DB String to feed to sqlalchemy create engine')
+    parser.add_argument('--db', help='DB String to feed to sqlalchemy create engine')
     parser.add_argument('--path', help='Path to read recursively')
     parser.add_argument('--s3-bucket', help='Use S3 backend with params from env')
     args = parser.parse_args()
 
-    init(dbpath=args.db, s3_bucket=args.s3_bucket, fs_path=args.path)
+    db_url_args = args.db
+    db_url_env = os.environ.get("DB_URL")
+    if db_url_env and db_url_args:
+        print("ERROR: Conflicting settings in ENV and --db for DB Target. Abort", file=sys.stderr)
+        sys.exit(1)
+    elif db_url_env:
+        db_url = db_url_env
+    elif db_url_args:
+        db_url = db_url_args
+    else:
+        print("No DB set, using local sqlite")
+        db_url = "sqlite:///database.sqlite"
+
+    init(dbpath=db_url, s3_bucket=args.s3_bucket, fs_path=args.path)
