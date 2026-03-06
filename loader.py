@@ -39,7 +39,11 @@ def list_objects(client, bucket_name, prefix=''):
 
 def list_all_files_s3(bucket_name):
 
-    s3_client = boto3.client('s3', endpoint_url=os.environ["S3_ENDPOINT"])
+    endpoint = os.environ["S3_ENDPOINT"]
+    if not endpoint.startswith("https://"):
+        endpoint = "https://" + endpoint
+
+    s3_client = boto3.client('s3', endpoint_url=endpoint)
     for file_key in list_objects(s3_client, bucket_name):
         yield file_key
 
