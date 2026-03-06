@@ -145,6 +145,7 @@ def reload_after_restart():
         app.config["RELOADED"] = True
         loader.init(dbpath=app.config["SQLALCHEMY_DATABASE_URI"],
                 s3_bucket=os.environ.get("S3_BUCKET"), fs_path=os.environ.get("FS_PATH"))
+        return ("Done", 200)
 
 def create_app():
     pass
