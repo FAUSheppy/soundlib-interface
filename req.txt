@@ -1,4 +1,4 @@
-boto3==1.43.67
+boto3==1.43.118
 SQLAlchemy==2.0.44
 Flask-SQLAlchemy==3.1.1
 Flask==3.1.3
